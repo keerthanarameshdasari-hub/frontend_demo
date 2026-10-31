@@ -8,6 +8,7 @@
 - [ ] No secrets, tokens, keys or `.env` files committed
 - [ ] Any database migration is reversible (has a working down/rollback)
 - [ ] Any API change is additive (no removed or renamed fields, endpoints or params)
+- [ ] App changes run on an Android emulator and an iOS simulator (CI doesn't build the native apps yet)
 
 ## Notes for the reviewer
 
