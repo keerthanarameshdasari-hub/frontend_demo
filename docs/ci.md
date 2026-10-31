@@ -9,21 +9,65 @@ run any of it yourself; it all happens on GitHub when you open a pull request.
 feature/* ──PR──▶ dev ──PR──▶ test ──PR──▶ main
 ```
 
-Every arrow is a pull request, and every pull request into `dev`, `test` or `main` runs the
-**Security** workflow (`.github/workflows/security.yml`). It also runs:
+Every arrow is a pull request, and every pull request into `dev`, `test` or `main` runs two
+workflows: **CI** (`.github/workflows/ci.yml`: build and test checks) and **Security**
+(`.github/workflows/security.yml`). Security also runs:
 
 - on every push to `dev` (i.e. after a PR merges), so `dev` itself is scanned and the Security
   tab reflects what is actually on the branch;
 - every Monday morning, so new problems in code that hasn't changed still get noticed (a
   vulnerability can be discovered in a package years after we added it).
 
-It never runs on `pull_request_target`, and it needs no secrets.
+Neither workflow runs on `pull_request_target`, and neither needs secrets.
 
 A pull request can only merge when all of its required checks are green. PRs into `dev` and
 `test` need nothing more, so you can merge your own. PRs into `main` also need an approval from
 the other maintainer (see "Who reviews what").
 
-## The jobs
+## The CI jobs
+
+### Lint, format and type check
+
+Runs, in order: `npm run config:check`, `npm run api:check`, `npm run format:check`,
+`npm run lint` and `npm run typecheck`.
+
+- **config:check** checks the four environments are wired up the same way everywhere: the env
+  files (only public keys, no secret-looking names, `https` outside dev), the Android flavours, the
+  iOS build configurations, Podfile and schemes, and that the app version is the same in
+  `package.json`, Android and iOS.
+- **api:check** checks `api/openapi.json` against `api/openapi.lock.json`, regenerates
+  `src/api/schema.d.ts` and fails if the committed copy differs.
+
+*Why:* the env wiring is spread over Gradle, Xcode and the Podfile, and a mismatch there ships the
+wrong backend URL or app ID without any compiler noticing. The env files are compiled into the app,
+so a secret in one is published to everyone who installs it.
+
+*If it fails:* the log names the file and the setting. For `api:check`, never edit
+`api/openapi.json` by hand: run `npm run api:fetch -- <tag>`. For formatting, run `npm run format`.
+
+### Unit and component tests
+
+`npm test`: the unit tests, the component tests that drive the whole app against an in-memory
+backend, and the test that every interactive element has a unique `testID`.
+
+### Contract test (pinned backend_demo)
+
+Starts `backend_demo` with `docker compose` at exactly the commit in `api/openapi.lock.json`, then
+runs `npm run test:contract`: sign-up, sign-in, KYC upload, top-ups and idempotent retries, through
+the app's own API client.
+
+*Why:* the component tests use a fake backend, which can drift from the real one. This proves the
+app's requests work against the backend version the client was generated from.
+
+*If it fails:* the job prints the backend's logs. If you just moved the pin, the new backend
+version changed behaviour the app relies on.
+
+### Not run yet
+
+Native builds (Gradle for Android, Xcode for iOS) and UI tests on an emulator or simulator. Until
+they are added, run the dev flavour on both before merging (README, "Run it locally").
+
+## The security jobs
 
 ### Secret scan (gitleaks)
 
@@ -55,17 +99,18 @@ GitHub's code analyser. It runs once per language, which is why it shows up as t
 
 - **actions** reads our workflow files and looks for things like untrusted input reaching a
   shell script, or a job with more permissions than it uses.
-- **javascript-typescript** reads `src/` and looks for security bugs such as injection,
-  cross-site scripting and unsafe use of user input.
+- **javascript-typescript** reads the app (`src/`, `index.js`), `scripts/` and the tests, and
+  looks for security bugs such as injection, cross-site scripting and unsafe use of user input.
 
 *Why:* these are the bugs reviewers miss most often, because the dangerous path can run across
 several files.
 
 *If it fails:* open the **Security → Code scanning** tab for the explanation and a suggested fix.
 
-**A later step must add more languages.** This repo has no native code yet. When `android/`
-is added, add `java-kotlin` to the language list in `security.yml`; when `ios/` is added, add
-`swift` (that one needs a macOS runner). Until then those folders are not analysed.
+**Native code is not analysed yet.** `android/` (Kotlin) and `ios/` (Swift) exist now, but
+CodeQL's `java-kotlin` needs a full Gradle build in the job and `swift` needs a macOS runner, so they
+are left for a separate change. Adding a language adds a check, so update the rulesets with it
+(see "Required checks").
 
 ### Workflow audit (zizmor)
 
@@ -101,15 +146,20 @@ makes a job do nothing.
 ## Keeping things up to date
 
 Dependabot (`.github/dependabot.yml`) opens a pull request into `dev` every Monday for
-outdated npm packages and GitHub Actions. Minor and patch updates are grouped into one PR per
-ecosystem, so there's less noise. Those PRs go through the same checks as everyone else's.
+outdated npm packages, GitHub Actions, Gradle dependencies (`android/`) and Ruby gems (the
+`Gemfile` that pins CocoaPods). Minor and patch updates are grouped into one PR per ecosystem, so
+there's less noise. Those PRs go through the same checks as everyone else's.
+
+React Native itself (`react-native`, `@react-native/*`, `@react-native-community/cli*`) is ignored:
+a React Native upgrade also changes files in `android/` and `ios/`, so it is done by hand with the
+[upgrade helper](https://react-native-community.github.io/upgrade-helper/), not by bumping a version.
 
 ## Who reviews what
 
 `.github/CODEOWNERS` makes @keerthanarameshdasari-hub and @Keerthana-212 the code owners of
 every file, with explicit lines for CI config (`.github/`), infrastructure (`infra/`),
-Dockerfiles and `package-lock.json`. Lines for `android/` and `ios/` are ready but commented
-out until those folders exist.
+Dockerfiles and `package-lock.json`, plus the native projects (`android/`, `ios/`), the
+environment files (`.env.*`) and the pinned API contract (`api/`).
 
 Because every file has owners, GitHub automatically asks the other maintainer to review each
 pull request; it shows up in their GitHub notifications (and email, if they have it on). What
@@ -137,6 +187,12 @@ and `main-strict` (for `main`):
 | `CodeQL (javascript-typescript)` | codeql |
 | `Workflow audit (zizmor)` | zizmor |
 | `Workflow lint (actionlint)` | actionlint |
+| `Lint, format and type check` | static (ci.yml) |
+| `Unit and component tests` | unit (ci.yml) |
+| `Contract test (pinned backend_demo)` | contract (ci.yml) |
+
+The last three come from `ci.yml` and are new with the mobile app: **add them to both rulesets** so a
+PR can't merge with them failing.
 
 If you rename a job or add a CodeQL language, update the rulesets too. A required check whose
 name no longer exists never reports, and PRs wait on it forever.

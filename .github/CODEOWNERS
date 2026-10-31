@@ -16,7 +16,12 @@ Dockerfile*              @keerthanarameshdasari-hub @Keerthana-212
 # Lockfile: a change here changes exactly what code ships
 package-lock.json        @keerthanarameshdasari-hub @Keerthana-212
 
-# Native app folders: android/ and ios/ do not exist in this repo yet.
-# Uncomment these when they are added.
-# /android/              @keerthanarameshdasari-hub @Keerthana-212
-# /ios/                  @keerthanarameshdasari-hub @Keerthana-212
+# Native app projects: signing, app IDs, permissions and build settings live here
+/android/                @keerthanarameshdasari-hub @Keerthana-212
+/ios/                    @keerthanarameshdasari-hub @Keerthana-212
+
+# Build-time environment config: compiled into the app, so public values only
+/.env.*                  @keerthanarameshdasari-hub @Keerthana-212
+
+# The pinned backend contract the API client is generated from
+/api/                    @keerthanarameshdasari-hub @Keerthana-212

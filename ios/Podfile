@@ -1,0 +1,80 @@
+# Resolve react_native_pods.rb with node to allow for hoisting
+require Pod::Executable.execute_command('node', ['-p',
+  'require.resolve(
+    "react-native/scripts/react_native_pods.rb",
+    {paths: [process.argv[1]]},
+  )', __dir__]).strip
+
+platform :ios, min_ios_version_supported
+prepare_react_native_project!
+
+# One Debug and one Release build configuration per environment. Each scheme
+# (Dev, Test, Uat, Prod) builds with its own pair, and each pair reads its own
+# env file. scripts/check-config.mjs keeps this list in step with the Xcode
+# project and android/app/build.gradle.
+ENVIRONMENTS = {
+  'Dev'  => '.env.dev',
+  'Test' => '.env.test',
+  'Uat'  => '.env.uat',
+  'Prod' => '.env.prod',
+}
+BUILD_CONFIGURATIONS = ENVIRONMENTS.keys.flat_map do |env|
+  [["Debug-#{env}", :debug], ["Release-#{env}", :release]]
+end.to_h
+DEBUG_CONFIGURATIONS = BUILD_CONFIGURATIONS.select { |_, type| type == :debug }.keys
+
+project 'WalletDemo', BUILD_CONFIGURATIONS
+
+linkage = ENV['USE_FRAMEWORKS']
+if linkage != nil
+  Pod::UI.puts "Configuring Pod with #{linkage}ally linked Frameworks".green
+  use_frameworks! :linkage => linkage.to_sym
+end
+
+target 'WalletDemo' do
+  config = use_native_modules!
+
+  use_react_native!(
+    :path => config[:reactNativePath],
+    # An absolute path to your application root.
+    :app_path => "#{Pod::Config.instance.installation_root}/.."
+  )
+
+  post_install do |installer|
+    react_native_post_install(
+      installer,
+      config[:reactNativePath],
+      :mac_catalyst_enabled => false,
+      # :ccache_enabled => true
+    )
+
+    # React Native only marks a configuration called exactly "Debug" as DEBUG for
+    # Swift. Do the same for every Debug-<Env>, or `#if DEBUG` in SceneDelegate.swift
+    # would be false and the app would look for a bundled main.jsbundle instead of Metro.
+    DEBUG_CONFIGURATIONS.each do |name|
+      ReactNativePodsUtils.set_build_setting(
+        installer,
+        build_setting: 'SWIFT_ACTIVE_COMPILATION_CONDITIONS',
+        value: ['$(inherited)', 'DEBUG'],
+        config_name: name,
+      )
+    end
+
+    # react-native-config: each build configuration reads its environment's file.
+    # A missing file would silently fall back to .env, so fail here instead.
+    installer.pods_project.targets.each do |target|
+      next unless target.name == 'react-native-config'
+
+      target.build_configurations.each do |build_config|
+        env = build_config.name.split('-', 2).last
+        env_file = ENVIRONMENTS.fetch(env) do
+          raise "No env file mapped for build configuration #{build_config.name}"
+        end
+        unless File.exist?(File.join(__dir__, '..', env_file))
+          raise "#{env_file} (for #{build_config.name}) is missing"
+        end
+        build_config.build_settings['ENVFILE'] = env_file
+      end
+    end
+  end
+end

@@ -1,0 +1,4 @@
+<resources>
+    <!-- app_name is set per product flavour (resValue in android/app/build.gradle),
+         so each environment shows its own name on the launcher. -->
+</resources>

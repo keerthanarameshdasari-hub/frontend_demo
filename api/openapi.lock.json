@@ -1,0 +1,8 @@
+{
+  "$comment": "Written by `npm run api:fetch`. Records which backend_demo openapi.json is in api/openapi.json.",
+  "repository": "https://github.com/keerthanarameshdasari-hub/backend_demo",
+  "tag": "api-v0.2.0",
+  "commit": "44d39e34970c2aa4fc60fc25aec2d6c0b0063521",
+  "apiVersion": "0.2.0",
+  "sha256": "fad5dc39ee3df7198e6fbcac441d638f830f307df9b4a5e5564240f7411085ef"
+}

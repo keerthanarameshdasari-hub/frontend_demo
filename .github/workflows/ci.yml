@@ -1,0 +1,138 @@
+name: CI
+
+# Build and test checks for every pull request into the promotion branches.
+# Security scanning lives in security.yml. docs/ci.md explains each job, why it
+# exists and what to do when it fails. Native builds (Gradle, Xcode) are not run
+# here yet; see docs/ci.md.
+
+on:
+  pull_request:
+    branches: [dev, test, main]
+
+# Deny everything by default; each job asks only for what it needs.
+permissions: {}
+
+# A new push to the same PR cancels the run it supersedes.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: "26"
+
+jobs:
+  static:
+    name: Lint, format and type check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read # read the repository code
+    steps:
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Environment config (env files, flavours, schemes, app IDs, versions)
+        run: npm run config:check
+
+      - name: Pinned API spec matches its lock, and the client is regenerated from it
+        # No network: checks api/openapi.json against api/openapi.lock.json, regenerates
+        # src/api/schema.d.ts and fails if the committed copy differs.
+        run: npm run api:check
+
+      - name: Format (prettier)
+        run: npm run format:check
+
+      - name: Lint (eslint)
+        run: npm run lint
+
+      - name: Type check (tsc, app and tests)
+        run: npm run typecheck
+
+  unit:
+    name: Unit and component tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read # read the repository code
+    steps:
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Run tests
+        run: npm test -- --ci
+
+  contract:
+    name: Contract test (pinned backend_demo)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read # read the repository code
+    steps:
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Read the pinned backend commit
+        id: pin
+        run: |
+          set -euo pipefail
+          commit=$(jq -r '.commit' api/openapi.lock.json)
+          repository=$(jq -r '.repository' api/openapi.lock.json)
+          [[ "$commit" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::lock has no full commit SHA"; exit 1; }
+          [[ "$repository" == "https://github.com/keerthanarameshdasari-hub/backend_demo" ]] \
+            || { echo "::error::unexpected backend repository in the lock: $repository"; exit 1; }
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+
+      - name: Check out backend_demo at that commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: keerthanarameshdasari-hub/backend_demo
+          ref: ${{ steps.pin.outputs.commit }}
+          path: backend_demo
+          persist-credentials: false
+
+      - name: Start backend_demo (docker compose)
+        working-directory: backend_demo
+        run: docker compose up --build --detach --wait --wait-timeout 300 api
+
+      - name: Set up Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Run the contract test through the app's API client
+        env:
+          CONTRACT_API_URL: http://localhost:3000
+        run: npm run test:contract -- --ci
+
+      - name: Backend logs (on failure)
+        if: failure()
+        working-directory: backend_demo
+        run: docker compose logs --no-color --tail 200

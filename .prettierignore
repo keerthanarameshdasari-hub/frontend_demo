@@ -1,0 +1,11 @@
+node_modules/
+coverage/
+package-lock.json
+# Copied verbatim from backend_demo: reformatting it would break the sha256 in api/openapi.lock.json.
+api/openapi.json
+# Owned by Xcode and Gradle.
+ios/
+android/
+# Workflow YAML and prose are formatted by hand (actionlint and zizmor check the workflows).
+.github/
+*.md
