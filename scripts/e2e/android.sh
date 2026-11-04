@@ -18,6 +18,10 @@ adb shell 'while [ "$(getprop sys.boot_completed)" != "1" ]; do sleep 1; done'
 adb shell settings put global window_animation_scale 0
 adb shell settings put global transition_animation_scale 0
 adb shell settings put global animator_duration_scale 0
+# CI emulators are slow, and system apps (the launcher) sometimes trip an "isn't
+# responding" dialog that covers the app. Suppress those dialogs; the flow also taps
+# "Wait" if one shows up anyway.
+adb shell settings put global hide_error_dialogs 1
 
 adb install -r "$APK"
 

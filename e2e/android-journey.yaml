@@ -7,6 +7,12 @@ name: Android journey
 ---
 - launchApp:
     clearState: true
+# A system "isn't responding" dialog (a CI emulator flake, not the app) can cover the app.
+- runFlow:
+    when:
+      visible: .*isn't responding.*
+    commands:
+      - tapOn: Wait
 # Wait for a real element: Android doesn't expose plain container views to UI tests.
 - extendedWaitUntil:
     visible:
