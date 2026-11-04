@@ -193,11 +193,13 @@ jobs:
           cd ios && bundle exec pod install
 
       - name: Build the Dev scheme for the simulator (Release-Dev, JS bundled in)
+        # Signed ad hoc ("Sign to Run Locally", no Apple account needed): an unsigned app
+        # has no keychain entitlement, so react-native-keychain couldn't store the token.
         run: |
           set -o pipefail
           xcodebuild -workspace ios/WalletDemo.xcworkspace -scheme Dev -configuration Release-Dev \
             -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
-            -derivedDataPath ios/build ONLY_ACTIVE_ARCH=YES ARCHS=arm64 CODE_SIGNING_ALLOWED=NO \
+            -derivedDataPath ios/build ONLY_ACTIVE_ARCH=YES ARCHS=arm64 CODE_SIGN_IDENTITY=- \
             build | tail -200
 
       - name: Install Maestro (checksum verified)
