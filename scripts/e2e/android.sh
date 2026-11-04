@@ -46,4 +46,16 @@ adb pull /sdcard/journey.mp4 "$OUT/journey.mp4" || true
 adb exec-out screencap -p > "$OUT/final-screen.png" || true
 adb logcat -d > "$OUT/logcat.txt" || true
 
+if [ "$status" -ne 0 ]; then
+  # Artifacts aren't always at hand, so put the essentials in the job log too.
+  echo "::group::What was on screen (text and testIDs)"
+  adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1 || true
+  adb shell cat /sdcard/ui.xml 2>/dev/null \
+    | grep -oE '(text|resource-id|content-desc)="[^"]+"' | sort -u | head -80 || true
+  echo "::endgroup::"
+  echo "::group::App errors from logcat"
+  grep -E 'ReactNativeJS|AndroidRuntime|ReactNative|RNCConfig|FATAL' "$OUT/logcat.txt" | tail -60 || true
+  echo "::endgroup::"
+fi
+
 exit "$status"

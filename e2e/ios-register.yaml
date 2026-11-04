@@ -8,9 +8,10 @@ name: iOS register
 - launchApp:
     clearState: true
     clearKeychain: true
+# Wait for a real element: Android doesn't expose plain container views to UI tests.
 - extendedWaitUntil:
     visible:
-      id: login.screen
+      id: login.emailInput
     timeout: 60000
 - assertVisible:
     id: app.envBadge
@@ -27,7 +28,9 @@ name: iOS register
 - tapOn:
     id: login.passwordInput
 - inputText: correct-horse-battery
-- hideKeyboard
+# iOS keyboards have no standard dismiss action (the number pad has no return key).
+- tapOn:
+    id: app.screenTitle
 - tapOn:
     id: login.submitButton
 - extendedWaitUntil:

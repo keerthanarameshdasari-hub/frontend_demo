@@ -35,7 +35,11 @@ export function Screen({
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
-          <Text style={styles.title} accessibilityRole="header">
+          <Text
+            style={styles.title}
+            accessibilityRole="header"
+            testID={TestIDs.screenTitle}
+          >
             {title}
           </Text>
           {envName && envName !== 'prod' ? (

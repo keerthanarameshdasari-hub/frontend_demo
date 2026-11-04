@@ -15,7 +15,9 @@ name: iOS wallet
 - tapOn:
     id: wallet.amountInput
 - inputText: '500'
-- hideKeyboard
+# iOS keyboards have no standard dismiss action (the number pad has no return key).
+- tapOn:
+    id: app.screenTitle
 - tapOn:
     id: wallet.testCard.approve
 - scrollUntilVisible:

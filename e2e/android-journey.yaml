@@ -7,9 +7,10 @@ name: Android journey
 ---
 - launchApp:
     clearState: true
+# Wait for a real element: Android doesn't expose plain container views to UI tests.
 - extendedWaitUntil:
     visible:
-      id: login.screen
+      id: login.emailInput
     timeout: 60000
 - assertVisible:
     id: app.envBadge

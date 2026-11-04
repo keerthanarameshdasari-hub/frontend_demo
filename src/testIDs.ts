@@ -10,6 +10,8 @@
  */
 export const TestIDs = {
   envBadge: 'app.envBadge',
+  /** Every screen's title. UI tests tap it to dismiss the keyboard (iOS has no other way). */
+  screenTitle: 'app.screenTitle',
 
   startup: {
     loading: 'startup.loading',
