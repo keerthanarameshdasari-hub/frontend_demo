@@ -95,16 +95,10 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Read the pinned backend commit
+      - name: Read the pinned backend commit (must be a backend_demo tag)
+        # Only a commit a backend_demo tag points at gets checked out and run (see the script).
         id: pin
-        run: |
-          set -euo pipefail
-          commit=$(jq -r '.commit' api/openapi.lock.json)
-          repository=$(jq -r '.repository' api/openapi.lock.json)
-          [[ "$commit" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::lock has no full commit SHA"; exit 1; }
-          [[ "$repository" == "https://github.com/keerthanarameshdasari-hub/backend_demo" ]] \
-            || { echo "::error::unexpected backend repository in the lock: $repository"; exit 1; }
-          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+        run: scripts/verify-backend-pin.sh
 
       - name: Check out backend_demo at that commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -122,7 +116,8 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
+          # No shared cache in the job that runs backend_demo code.
+          package-manager-cache: false
 
       - name: Install dependencies
         run: npm ci --no-audit --no-fund

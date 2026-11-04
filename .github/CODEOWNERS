@@ -1,7 +1,8 @@
 # Code owners for frontend_demo.
 # GitHub automatically requests a review from the owners of every file a PR changes.
-# The main-strict ruleset makes that approval required for PRs into main; dev and test
-# only need green checks. Later rules take precedence over earlier ones.
+# The protect-dev, protect-test and protect-main rulesets make a code owner's approval
+# (someone other than the author) required for every PR. Later rules take precedence
+# over earlier ones.
 
 # Default: everything, so every PR asks the other maintainer for a review
 *                        @keerthanarameshdasari-hub @Keerthana-212

@@ -20,9 +20,8 @@ workflows: **CI** (`.github/workflows/ci.yml`: build and test checks) and **Secu
 
 Neither workflow runs on `pull_request_target`, and neither needs secrets.
 
-A pull request can only merge when all of its required checks are green. PRs into `dev` and
-`test` need nothing more, so you can merge your own. PRs into `main` also need an approval from
-the other maintainer (see "Who reviews what").
+A pull request can only merge when all of its required checks are green, it is up to date with
+the branch it targets, and the other maintainer has approved it (see "Who reviews what").
 
 ## The CI jobs
 
@@ -56,6 +55,11 @@ Starts `backend_demo` with `docker compose` at exactly the commit in `api/openap
 runs `npm run test:contract`: sign-up, sign-in, KYC upload, top-ups and idempotent retries, through
 the app's own API client.
 
+It only runs a backend commit that a backend_demo **tag** points at
+(`scripts/verify-backend-pin.sh`): a pull request could otherwise put any commit, even one from a
+fork, into the lock and have CI run it. Pin to a tag (`npm run api:fetch -- <tag>`); an untagged
+pin fails here.
+
 *Why:* the component tests use a fake backend, which can drift from the real one. This proves the
 app's requests work against the backend version the client was generated from.
 
@@ -74,8 +78,9 @@ needs an emulator or simulator on their own laptop. It runs on pull requests tha
 | `Android emulator (dev)` | Linux | Starts backend_demo with docker compose, builds the dev release APK, boots an API 35 emulator, and walks the whole journey through the UI: create account, KYC upload with the system file picker, top-up. |
 | `iOS simulator (dev)` | macOS | Starts backend_demo without Docker (Postgres, an S3 stand-in and the API), builds the `Dev` scheme in `Release-Dev`, and in the simulator creates an account, approves KYC through the API (the simulator has no files for the picker), relaunches and tops up. |
 
-Both use backend_demo at the commit pinned in `api/openapi.lock.json`, and
-[Maestro](https://maestro.dev) drives the app through its testIDs (flows in `e2e/`, scripts in
+Both use backend_demo at the commit pinned in `api/openapi.lock.json` (which must be a tagged commit,
+as for the contract test), with no shared npm or Gradle caches so backend code can't tamper with
+caches other runs reuse. [Maestro](https://maestro.dev) drives the app through its testIDs (flows in `e2e/`, scripts in
 `scripts/e2e/`). Maestro is pinned and checked against the sha256 GitHub records for its release.
 
 **Reading the results:** open the run and scroll to **Artifacts**. `android-results` and
@@ -189,19 +194,26 @@ Because every file has owners, GitHub automatically asks the other maintainer to
 pull request; it shows up in their GitHub notifications (and email, if they have it on). What
 that review means depends on where the PR is going:
 
-- **Into `dev` or `test`** (`dev-test` ruleset): the review is optional. Once the checks are
-  green you can merge your own PR.
-- **Into `main`** (`main-strict` ruleset): one approval from a code owner other than the PR's
-  author is required. If new commits are pushed after the approval, it is dismissed and the
-  PR needs approving again. Nobody, admins included, can bypass this.
+The rulesets `protect-dev`, `protect-test` and `protect-main` (Settings → Rules → Rulesets)
+apply the same rules to all three branches:
+
+- **An approval from a code owner other than the PR's author.** You can't approve your own PR,
+  so the other maintainer has to. `protect-test` and `protect-main` also ask for one approving
+  review in general, which the code owner's approval satisfies.
+- **Up to date with the target branch.** If the PR shows "This branch is out-of-date", click
+  **Update branch** (the checks then run again).
+- **All review conversations resolved.**
+- **Squash merge only.**
+- **New commits dismiss earlier approvals**, so approve after the last push.
+- **No bypass:** nobody, admins included, can skip these.
 
 To review, open the PR, go to **Files changed → Review changes**, pick **Approve** or
 **Request changes**, and submit.
 
 ## Required checks
 
-These are the check names to require in both branch rulesets, `dev-test` (for `dev` and `test`)
-and `main-strict` (for `main`):
+These are the check names to require in all three branch rulesets (`protect-dev`, `protect-test`,
+`protect-main`):
 
 | Check name | Job |
 |---|---|
@@ -215,8 +227,8 @@ and `main-strict` (for `main`):
 | `Unit and component tests` | unit (ci.yml) |
 | `Contract test (pinned backend_demo)` | contract (ci.yml) |
 
-The last three come from `ci.yml` and are new with the mobile app: **add them to both rulesets** so a
-PR can't merge with them failing.
+The last three come from `ci.yml` and are new with the mobile app: **add them to all three
+rulesets** so a PR can't merge with them failing.
 
 The Devices jobs (`Android emulator (dev)`, `iOS simulator (dev)`) are deliberately **not** in this
 list; see "The Devices workflow".

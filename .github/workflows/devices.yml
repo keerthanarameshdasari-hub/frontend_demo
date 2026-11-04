@@ -7,6 +7,12 @@ name: Devices
 #
 # Run it from the Actions tab ("Run workflow"), or let it run on a pull request that
 # changes the app. docs/ci.md explains what it covers and how to read the results.
+#
+# Security: both jobs run backend_demo code at the commit in api/openapi.lock.json, a file
+# a pull request can change. scripts/verify-backend-pin.sh only lets through a commit that
+# a backend_demo tag points at (not an arbitrary or forked commit), and these jobs use no
+# shared caches (npm, Gradle), so even a bad backend commit couldn't poison the caches
+# that other runs restore. That makes builds a few minutes slower.
 
 on:
   workflow_dispatch:
@@ -58,13 +64,9 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Read the pinned backend commit
+      - name: Read the pinned backend commit (must be a backend_demo tag)
         id: pin
-        run: |
-          set -euo pipefail
-          commit=$(jq -r '.commit' api/openapi.lock.json)
-          [[ "$commit" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::lock has no full commit SHA"; exit 1; }
-          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+        run: scripts/verify-backend-pin.sh
 
       - name: Check out backend_demo at that commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -84,7 +86,8 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
+          # No shared caches in jobs that run backend_demo code (see the note at the top).
+          package-manager-cache: false
 
       - name: Set up JDK 17
         uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
@@ -94,6 +97,9 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@3f5f9adaf7d9fecd50b5935e54106014257a94e6 # v6.4.0
+        with:
+          # No shared caches in jobs that run backend_demo code (see the note at the top).
+          cache-disabled: true
 
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
@@ -150,13 +156,9 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Read the pinned backend commit
+      - name: Read the pinned backend commit (must be a backend_demo tag)
         id: pin
-        run: |
-          set -euo pipefail
-          commit=$(jq -r '.commit' api/openapi.lock.json)
-          [[ "$commit" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::lock has no full commit SHA"; exit 1; }
-          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+        run: scripts/verify-backend-pin.sh
 
       - name: Check out backend_demo at that commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -170,7 +172,8 @@ jobs:
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
+          # No shared caches in jobs that run backend_demo code (see the note at the top).
+          package-manager-cache: false
 
       - name: Start backend_demo (Postgres, S3 stand-in, API; macOS runners have no Docker)
         run: scripts/e2e/start-backend-macos.sh backend_demo
