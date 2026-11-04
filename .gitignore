@@ -13,6 +13,8 @@
 node_modules/
 dist/
 coverage/
+# Screenshots, recordings and reports from scripts/e2e/.
+e2e-results/
 *.log
 
 # --- macOS -------------------------------------------------------------------

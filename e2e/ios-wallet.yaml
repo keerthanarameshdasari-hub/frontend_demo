@@ -1,0 +1,38 @@
+# iOS part 2, after KYC was approved through the API: relaunch the app (not clearing
+# state), so it restores the session from the keychain and goes straight to the wallet,
+# then top up.
+appId: com.demo.wallet.dev
+name: iOS wallet
+---
+- stopApp
+- launchApp
+- extendedWaitUntil:
+    visible:
+      id: wallet.balance
+      text: ₹0.00
+    timeout: 60000
+- takeScreenshot: 03-wallet
+- tapOn:
+    id: wallet.amountInput
+- inputText: '500'
+- hideKeyboard
+- tapOn:
+    id: wallet.testCard.approve
+- scrollUntilVisible:
+    element:
+      id: wallet.topUpButton
+- tapOn:
+    id: wallet.topUpButton
+- extendedWaitUntil:
+    visible:
+      id: wallet.topUpResult
+      text: .*added to your wallet.*
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      id: wallet.balance
+    direction: UP
+- assertVisible:
+    id: wallet.balance
+    text: ₹500.00
+- takeScreenshot: 04-topped-up

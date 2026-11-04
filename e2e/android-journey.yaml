@@ -1,0 +1,109 @@
+# Full journey on Android, through the real UI: create an account, upload a KYC document
+# with the system file picker, top up the wallet.
+# Run by scripts/e2e/android.sh, which installs the app, puts passport.png in Downloads and
+# passes EMAIL. Elements are selected by their testID (src/testIDs.ts).
+appId: com.demo.wallet.dev
+name: Android journey
+---
+- launchApp:
+    clearState: true
+- extendedWaitUntil:
+    visible:
+      id: login.screen
+    timeout: 60000
+- assertVisible:
+    id: app.envBadge
+    text: DEV
+- takeScreenshot: 01-login
+
+# Create an account
+- tapOn:
+    id: login.mode.register
+- tapOn:
+    id: login.fullNameInput
+- inputText: E2E Tester
+- tapOn:
+    id: login.emailInput
+- inputText: ${EMAIL}
+- tapOn:
+    id: login.passwordInput
+- inputText: correct-horse-battery
+- hideKeyboard
+- tapOn:
+    id: login.submitButton
+
+# KYC: passport, number, file from the picker
+- extendedWaitUntil:
+    visible:
+      id: kyc.documentNumberInput
+    timeout: 30000
+- takeScreenshot: 02-kyc
+- tapOn:
+    id: kyc.documentType.PASSPORT
+- tapOn:
+    id: kyc.documentNumberInput
+- inputText: P1234567
+- hideKeyboard
+- tapOn:
+    id: kyc.pickFileButton
+- waitForAnimationToEnd
+# The picker opens on Recent; if the file isn't listed there, browse to Downloads.
+- runFlow:
+    when:
+      notVisible: passport.png
+    commands:
+      - tapOn: Show roots
+      - tapOn: Downloads
+- tapOn: passport.png
+- extendedWaitUntil:
+    visible:
+      id: kyc.pickedFileName
+      text: passport.png
+    timeout: 15000
+- scrollUntilVisible:
+    element:
+      id: kyc.submitButton
+- tapOn:
+    id: kyc.submitButton
+- extendedWaitUntil:
+    visible:
+      id: kyc.continueButton
+    timeout: 30000
+- assertVisible:
+    id: kyc.status
+    text: Verified.*
+- takeScreenshot: 03-kyc-approved
+- tapOn:
+    id: kyc.continueButton
+
+# Wallet: top up 500 with the approving test card
+- extendedWaitUntil:
+    visible:
+      id: wallet.balance
+      text: ₹0.00
+    timeout: 30000
+- takeScreenshot: 04-wallet
+- tapOn:
+    id: wallet.amountInput
+- inputText: '500'
+- hideKeyboard
+- tapOn:
+    id: wallet.testCard.approve
+- scrollUntilVisible:
+    element:
+      id: wallet.topUpButton
+- tapOn:
+    id: wallet.topUpButton
+- extendedWaitUntil:
+    visible:
+      id: wallet.topUpResult
+      text: .*added to your wallet.*
+    timeout: 30000
+- scrollUntilVisible:
+    element:
+      id: wallet.balance
+    direction: UP
+- assertVisible:
+    id: wallet.balance
+    text: ₹500.00
+- takeScreenshot: 05-topped-up
