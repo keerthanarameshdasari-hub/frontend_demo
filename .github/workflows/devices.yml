@@ -26,10 +26,14 @@ on:
       - "ios/**"
       - "package.json"
       - "package-lock.json"
+      - "Gemfile"
+      - "babel.config.js"
+      - "metro.config.js"
       - ".env.dev"
       - "api/**"
       - "e2e/**"
       - "scripts/e2e/**"
+      - "scripts/verify-backend-pin.sh"
       - ".github/workflows/devices.yml"
 
 # Deny everything by default; each job asks only for what it needs.
@@ -44,6 +48,8 @@ env:
   MAESTRO_VERSION: "2.11.0"
   MAESTRO_CLI_NO_ANALYTICS: "1"
   MAESTRO_CLI_ANALYSIS_NOTIFICATION_DISABLED: "true"
+  # Starting Maestro's iOS driver on a busy macOS runner can take longer than the default.
+  MAESTRO_DRIVER_STARTUP_TIMEOUT: "180000"
 
 jobs:
   android:

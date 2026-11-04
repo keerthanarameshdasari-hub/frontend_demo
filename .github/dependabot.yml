@@ -1,6 +1,6 @@
 # Dependabot version updates.
-# Note: GitHub reads this file from the DEFAULT branch (main). It only takes effect
-# once it has been promoted dev -> test -> main.
+# Note: GitHub reads this file from the DEFAULT branch, which is dev, and rescans as
+# soon as it changes there, so editing it can open several PRs at once.
 # Docker is not configured because this repo has no Dockerfile; add it if one appears.
 # React Native itself (and the Android Gradle plugin, Kotlin, CocoaPods versions it
 # pins) is upgraded deliberately with the React Native upgrade helper, not by Dependabot,
@@ -31,6 +31,18 @@ updates:
       - dependency-name: "react-native"
       - dependency-name: "@react-native/*"
       - dependency-name: "@react-native-community/cli*"
+      # Major versions that only move with a React Native upgrade: its lint config needs
+      # ESLint 8, its build tooling needs Babel 7, and it pins the React major it renders.
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@babel/*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react"
+        update-types: ["version-update:semver-major"]
+      # Node type definitions follow the oldest Node the app supports ("engines": >= 22),
+      # so code can't use APIs that Node 22 lacks. Minor and patch updates still come.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "chore(deps)"
 
@@ -50,6 +62,10 @@ updates:
         update-types:
           - minor
           - patch
+    ignore:
+      # React Native pins the Gradle version its Android build is tested with; it moves
+      # with a React Native upgrade (upgrade helper), not on its own.
+      - dependency-name: "gradle-wrapper"
     commit-message:
       prefix: "chore(deps)"
 
@@ -69,6 +85,12 @@ updates:
         update-types:
           - minor
           - patch
+    ignore:
+      # The React Native template pins these for CocoaPods compatibility; they move with
+      # a React Native upgrade.
+      - dependency-name: "xcodeproj"
+      - dependency-name: "cocoapods"
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "chore(deps)"
 
