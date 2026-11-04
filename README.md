@@ -114,7 +114,8 @@ for its contract. Requests and responses are typed through
 removes is a compile error.
 
 ```sh
-npm run api:fetch -- api-v0.3.0   # pin a newer tag: copies its openapi.json, updates the lock, regenerates
+npm run api:fetch -- api-v0.3.0   # pin a newer tag: copies its openapi.json, updates the lock and the
+                                  # backend tag CI checks out (.github/workflows), regenerates the client
 npm run typecheck                 # see what the new contract breaks
 ```
 

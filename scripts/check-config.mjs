@@ -290,12 +290,44 @@ function checkIos(version) {
   }
 }
 
+/**
+ * CI checks out backend_demo at a tag written into the workflows (`ref: <tag> # backend-pin`),
+ * never at a ref read from a file at run time. Those lines must match api/openapi.lock.json.
+ */
+function checkBackendPin() {
+  const lock = JSON.parse(read('api/openapi.lock.json'));
+  const workflows = [
+    '.github/workflows/ci.yml',
+    '.github/workflows/devices.yml',
+  ];
+  let found = 0;
+  for (const path of workflows) {
+    for (const m of read(path).matchAll(
+      /^\s*ref:\s*(\S+)\s*#\s*backend-pin\s*$/gm,
+    )) {
+      found++;
+      if (!lock.tag) {
+        error(
+          `${path}: CI needs the API pinned to a backend_demo tag, but api/openapi.lock.json pins an untagged commit`,
+        );
+      } else if (m[1] !== lock.tag) {
+        error(
+          `${path}: checks out backend_demo at ${m[1]}, but api/openapi.lock.json pins ${lock.tag}. Run npm run api:fetch -- ${lock.tag}`,
+        );
+      }
+    }
+  }
+  if (found === 0)
+    error('no "# backend-pin" checkout lines found in the workflows');
+}
+
 const version = JSON.parse(read('package.json')).version;
 if (!/^\d+\.\d+\.\d+$/.test(version))
   error(`package.json version must be x.y.z, is ${version}`);
 checkEnvFiles();
 checkAndroid(version);
 checkIos(version);
+checkBackendPin();
 
 const gh = Boolean(process.env.GITHUB_ACTIONS);
 for (const message of warnings)
@@ -304,5 +336,5 @@ for (const message of errors)
   console.error(gh ? `::error::${message}` : `error: ${message}`);
 if (errors.length > 0) process.exit(1);
 console.log(
-  `Config ok: ${ENVIRONMENTS.length} environments, app version ${version}.`,
+  `Config ok: ${ENVIRONMENTS.length} environments, app version ${version}, backend pin matches the workflows.`,
 );

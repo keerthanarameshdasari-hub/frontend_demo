@@ -8,11 +8,12 @@ name: Devices
 # Run it from the Actions tab ("Run workflow"), or let it run on a pull request that
 # changes the app. docs/ci.md explains what it covers and how to read the results.
 #
-# Security: both jobs run backend_demo code at the commit in api/openapi.lock.json, a file
-# a pull request can change. scripts/verify-backend-pin.sh only lets through a commit that
-# a backend_demo tag points at (not an arbitrary or forked commit), and these jobs use no
-# shared caches (npm, Gradle), so even a bad backend commit couldn't poison the caches
-# that other runs restore. That makes builds a few minutes slower.
+# Security: both jobs run backend_demo code. They check it out at the tag written on the
+# `ref: ... # backend-pin` lines below, never at a ref read from a file at run time, so a
+# pull request can't make CI run another backend commit without changing those reviewed
+# lines. scripts/verify-backend-pin.sh then checks the checkout is the commit
+# api/openapi.lock.json pins. The jobs also use no shared caches (npm, Gradle), so backend
+# code can't tamper with caches other runs restore; builds are a few minutes slower.
 
 on:
   workflow_dispatch:
@@ -64,17 +65,20 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Read the pinned backend commit (must be a backend_demo tag)
-        id: pin
-        run: scripts/verify-backend-pin.sh
-
-      - name: Check out backend_demo at that commit
+      - name: Check out backend_demo at the pinned tag
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: keerthanarameshdasari-hub/backend_demo
-          ref: ${{ steps.pin.outputs.commit }}
+          # Written into the workflow on purpose (not read from a file at run time), so a
+          # pull request can't make CI run another backend commit without changing this
+          # reviewed line. npm run api:fetch updates it; npm run config:check checks it
+          # matches api/openapi.lock.json.
+          ref: api-v0.2.0 # backend-pin
           path: backend_demo
           persist-credentials: false
+
+      - name: Check the checkout is the commit api/openapi.lock.json pins
+        run: scripts/verify-backend-pin.sh backend_demo
 
       - name: Start backend_demo (docker compose)
         working-directory: backend_demo
@@ -156,17 +160,20 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Read the pinned backend commit (must be a backend_demo tag)
-        id: pin
-        run: scripts/verify-backend-pin.sh
-
-      - name: Check out backend_demo at that commit
+      - name: Check out backend_demo at the pinned tag
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: keerthanarameshdasari-hub/backend_demo
-          ref: ${{ steps.pin.outputs.commit }}
+          # Written into the workflow on purpose (not read from a file at run time), so a
+          # pull request can't make CI run another backend commit without changing this
+          # reviewed line. npm run api:fetch updates it; npm run config:check checks it
+          # matches api/openapi.lock.json.
+          ref: api-v0.2.0 # backend-pin
           path: backend_demo
           persist-credentials: false
+
+      - name: Check the checkout is the commit api/openapi.lock.json pins
+        run: scripts/verify-backend-pin.sh backend_demo
 
       - name: Set up Node
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0

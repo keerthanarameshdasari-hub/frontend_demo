@@ -1,43 +1,31 @@
 #!/usr/bin/env bash
-# Checks that api/openapi.lock.json pins a backend_demo *tag*, and that the tag really
-# points at the pinned commit in backend_demo, before CI checks that commit out and runs
-# it. Without this a pull request could put any commit (even one from a fork, which
-# GitHub serves through the parent repository) into the lock and have CI run it.
+# Runs in CI right after backend_demo is checked out at the tag written in the workflow
+# (the `ref: ... # backend-pin` lines). Checks that what was checked out is exactly the
+# commit api/openapi.lock.json pins, so the backend CI runs is the one the API client was
+# generated from. A tag that was moved or recreated in backend_demo fails here.
 #
-#   scripts/verify-backend-pin.sh        prints the commit; in GitHub Actions also writes
-#                                        commit=<sha> to $GITHUB_OUTPUT
+#   scripts/verify-backend-pin.sh <backend_demo checkout>
 #
-# Pinning an untagged commit (npm run api:fetch -- --commit <sha>) still works locally,
-# but CI refuses it: tag the commit in backend_demo first.
+# The tag itself lives in the workflow files on purpose: CI never takes the ref to check
+# out from a file a pull request could change. npm run config:check fails if those lines
+# and the lock disagree, and npm run api:fetch updates them when the pin moves.
 set -euo pipefail
 
+CHECKOUT="${1:?usage: $0 <backend_demo checkout>}"
 LOCK="$(cd "$(dirname "$0")/.." && pwd)/api/openapi.lock.json"
-EXPECTED_REPO=https://github.com/keerthanarameshdasari-hub/backend_demo
 
 fail() {
   echo "${GITHUB_ACTIONS:+::error file=api/openapi.lock.json::}$1" >&2
   exit 1
 }
 
-repository=$(jq -r '.repository' "$LOCK")
-commit=$(jq -r '.commit' "$LOCK")
 tag=$(jq -r '.tag // empty' "$LOCK")
-
-[[ "$repository" == "$EXPECTED_REPO" ]] || fail "the lock names $repository, expected $EXPECTED_REPO"
+commit=$(jq -r '.commit' "$LOCK")
+[[ -n "$tag" ]] || fail "the API is pinned to an untagged commit; CI needs a tag: tag it in backend_demo and run npm run api:fetch -- <tag>"
 [[ "$commit" =~ ^[0-9a-f]{40}$ ]] || fail "the lock has no full commit SHA"
-[[ -n "$tag" ]] || fail "the API is pinned to an untagged commit; tag it in backend_demo and run npm run api:fetch -- <tag>"
-[[ "$tag" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$ ]] || fail "the lock's tag is not a valid tag name: $tag"
 
-refs=$(git ls-remote "$EXPECTED_REPO" "refs/tags/$tag" "refs/tags/$tag^{}") \
-  || fail "could not read tags from $EXPECTED_REPO"
-# An annotated tag lists both the tag object and, with ^{}, the commit it points at.
-actual=$(awk -v ref="refs/tags/$tag^{}" '$2 == ref { print $1 }' <<<"$refs")
-[[ -n "$actual" ]] || actual=$(awk -v ref="refs/tags/$tag" '$2 == ref { print $1 }' <<<"$refs")
+actual=$(git -C "$CHECKOUT" rev-parse HEAD)
+[[ "$actual" == "$commit" ]] \
+  || fail "backend_demo tag $tag is now commit $actual, but the lock pins $commit. If the tag was moved on purpose, run npm run api:fetch -- $tag"
 
-[[ -n "$actual" ]] || fail "tag $tag does not exist in backend_demo"
-[[ "$actual" == "$commit" ]] || fail "tag $tag points at $actual in backend_demo, but the lock pins $commit"
-
-echo "Backend pin ok: $tag = $commit"
-if [[ -n "${GITHUB_OUTPUT:-}" ]]; then
-  echo "commit=$commit" >> "$GITHUB_OUTPUT"
-fi
+echo "Backend checkout ok: $tag = $commit"

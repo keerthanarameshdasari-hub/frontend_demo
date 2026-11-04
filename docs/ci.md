@@ -55,10 +55,13 @@ Starts `backend_demo` with `docker compose` at exactly the commit in `api/openap
 runs `npm run test:contract`: sign-up, sign-in, KYC upload, top-ups and idempotent retries, through
 the app's own API client.
 
-It only runs a backend commit that a backend_demo **tag** points at
-(`scripts/verify-backend-pin.sh`): a pull request could otherwise put any commit, even one from a
-fork, into the lock and have CI run it. Pin to a tag (`npm run api:fetch -- <tag>`); an untagged
-pin fails here.
+It checks backend_demo out at the tag written on the `ref: ... # backend-pin` lines in the
+workflows, not at a ref read from a file while the job runs, so a pull request can't make CI run
+another backend commit without changing those lines (which the reviewer sees). After the checkout,
+`scripts/verify-backend-pin.sh` checks it is exactly the commit `api/openapi.lock.json` pins, so a
+moved tag fails the job. `npm run api:fetch -- <tag>` updates those lines for you, and
+`npm run config:check` fails if they ever disagree with the lock. An untagged pin fails CI: tag the
+commit in backend_demo first.
 
 *Why:* the component tests use a fake backend, which can drift from the real one. This proves the
 app's requests work against the backend version the client was generated from.
@@ -78,9 +81,8 @@ needs an emulator or simulator on their own laptop. It runs on pull requests tha
 | `Android emulator (dev)` | Linux | Starts backend_demo with docker compose, builds the dev release APK, boots an API 35 emulator, and walks the whole journey through the UI: create account, KYC upload with the system file picker, top-up. |
 | `iOS simulator (dev)` | macOS | Starts backend_demo without Docker (Postgres, an S3 stand-in and the API), builds the `Dev` scheme in `Release-Dev`, and in the simulator creates an account, approves KYC through the API (the simulator has no files for the picker), relaunches and tops up. |
 
-Both use backend_demo at the commit pinned in `api/openapi.lock.json` (which must be a tagged commit,
-as for the contract test), with no shared npm or Gradle caches so backend code can't tamper with
-caches other runs reuse. [Maestro](https://maestro.dev) drives the app through its testIDs (flows in `e2e/`, scripts in
+Both use backend_demo at the pinned tag, checked the same way as for the contract test, with no
+shared npm or Gradle caches so backend code can't tamper with caches other runs reuse. [Maestro](https://maestro.dev) drives the app through its testIDs (flows in `e2e/`, scripts in
 `scripts/e2e/`). Maestro is pinned and checked against the sha256 GitHub records for its release.
 
 **Reading the results:** open the run and scroll to **Artifacts**. `android-results` and

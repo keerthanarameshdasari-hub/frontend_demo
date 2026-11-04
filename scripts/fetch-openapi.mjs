@@ -148,6 +148,24 @@ function fetchSpec(ref) {
   }
 }
 
+/** CI checks out backend_demo at the tag on each `ref: <tag> # backend-pin` line; keep them in step. */
+function updateWorkflowPins(tag) {
+  for (const name of ['ci.yml', 'devices.yml']) {
+    const path = join(ROOT, '.github', 'workflows', name);
+    const before = readFileSync(path, 'utf8');
+    const after = before.replace(
+      /^(\s*ref:\s*)\S+(\s*#\s*backend-pin\s*)$/gm,
+      `$1${tag}$2`,
+    );
+    if (after !== before) {
+      writeFileSync(path, after);
+      console.log(
+        `Updated the backend checkout in .github/workflows/${name} to ${tag}`,
+      );
+    }
+  }
+}
+
 function pin(ref) {
   const { repo, commit, bytes } = fetchSpec(ref);
   const spec = parseSpec(bytes, `openapi.json at ${ref.name}`);
@@ -163,6 +181,11 @@ function pin(ref) {
     sha256: sha256(bytes),
   };
   writeFileSync(LOCK, `${JSON.stringify(lock, null, 2)}\n`);
+  if (lock.tag) updateWorkflowPins(lock.tag);
+  else
+    console.log(
+      'warning: CI checks out backend_demo by tag, so the contract and Devices jobs will fail until this commit is tagged.',
+    );
   console.log(
     `Pinned backend API ${lock.apiVersion} from ${ref.kind} ${
       ref.name
