@@ -30,6 +30,10 @@ name: Android journey
     id: login.passwordInput
 - inputText: correct-horse-battery
 - hideKeyboard
+# Enabled only once every field is valid, so this catches typing that didn't arrive.
+- assertVisible:
+    id: login.submitButton
+    enabled: true
 - tapOn:
     id: login.submitButton
 

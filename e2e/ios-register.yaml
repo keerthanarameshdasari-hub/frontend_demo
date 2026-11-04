@@ -25,12 +25,20 @@ name: iOS register
 - tapOn:
     id: login.emailInput
 - inputText: ${EMAIL}
+# Dismiss the keyboard before the password field: moving straight from one field into a
+# secure one is where the simulator drops typed characters.
+- tapOn:
+    id: app.screenTitle
 - tapOn:
     id: login.passwordInput
 - inputText: correct-horse-battery
 # iOS keyboards have no standard dismiss action (the number pad has no return key).
 - tapOn:
     id: app.screenTitle
+# Enabled only once every field is valid, so this catches typing that didn't arrive.
+- assertVisible:
+    id: login.submitButton
+    enabled: true
 - tapOn:
     id: login.submitButton
 - extendedWaitUntil:

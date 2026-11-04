@@ -19,7 +19,29 @@ UDID=$(xcrun simctl list devices available --json | jq -r '
   | last | .udid')
 [ -n "$UDID" ] && [ "$UDID" != "null" ] || { echo "No iPhone simulator available"; exit 1; }
 echo "Simulator: $(xcrun simctl list devices | grep "$UDID")"
+
+# Password AutoFill in the simulator interrupts typing into password fields (only the
+# first character arrives). Boot once so the settings files exist, then switch AutoFill
+# off through the same restriction a device management profile would set, and reboot.
 xcrun simctl boot "$UDID" || true
+xcrun simctl bootstatus "$UDID" -b
+xcrun simctl shutdown "$UDID"
+python3 - "$HOME/Library/Developer/CoreSimulator/Devices/$UDID/data/Library/UserConfigurationProfiles" <<'PY'
+import os, plistlib, sys
+base = sys.argv[1]
+for name in ("UserSettings.plist", "EffectiveUserSettings.plist", "PublicInfo/PublicEffectiveUserSettings.plist"):
+    path = os.path.join(base, name)
+    data = {}
+    if os.path.exists(path):
+        with open(path, "rb") as f:
+            data = plistlib.load(f)
+    data.setdefault("restrictedBool", {}).setdefault("allowPasswordAutoFill", {})["value"] = False
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "wb") as f:
+        plistlib.dump(data, f)
+    print(f"AutoFill off in {name}")
+PY
+xcrun simctl boot "$UDID"
 xcrun simctl bootstatus "$UDID" -b
 xcrun simctl install "$UDID" "$APP"
 
