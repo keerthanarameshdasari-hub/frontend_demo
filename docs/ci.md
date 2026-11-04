@@ -184,6 +184,14 @@ there's less noise. Those PRs go through the same checks as everyone else's.
 React Native itself (`react-native`, `@react-native/*`, `@react-native-community/cli*`) is ignored:
 a React Native upgrade also changes files in `android/` and `ios/`, so it is done by hand with the
 [upgrade helper](https://react-native-community.github.io/upgrade-helper/), not by bumping a version.
+So is everything React Native pins and that only moves with such an upgrade: new **major** versions
+of ESLint, Babel and React, the Gradle wrapper, `xcodeproj` and new CocoaPods majors. `@types/node`
+majors are ignored too, because the types follow the oldest Node the app supports (22). Minor and
+patch updates of all of these still arrive.
+
+Dependabot reads this file from the default branch (`dev`) and rescans whenever it changes, so
+editing it can open a batch of PRs straight away. They are only proposals: each goes through the
+same checks and approval as any other PR, and closing one is fine.
 
 ## Who reviews what
 
