@@ -66,6 +66,10 @@ target 'WalletDemo' do
       next unless target.name == 'react-native-config'
 
       target.build_configurations.each do |build_config|
+        # CocoaPods always keeps its own plain Debug and Release configurations too.
+        # No scheme builds with them, so they get no env file.
+        next if %w[Debug Release].include?(build_config.name)
+
         env = build_config.name.split('-', 2).last
         env_file = ENVIRONMENTS.fetch(env) do
           raise "No env file mapped for build configuration #{build_config.name}"
