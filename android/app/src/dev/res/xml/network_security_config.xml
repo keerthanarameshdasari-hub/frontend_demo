@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Dev flavour only: allow plain http in every build type (debug and release), because the
+  dev backend is backend_demo on the developer's machine (http://10.0.2.2:3000 from the
+  emulator, or the machine's LAN address from a phone), and CI runs a dev *release* build
+  against a local backend. Release builds otherwise block cleartext.
+
+  scripts/check-config.mjs only lets .env.dev point at a local http address, and the
+  test, uat and prod flavours don't get this file, so they keep blocking cleartext.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

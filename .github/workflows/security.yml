@@ -77,8 +77,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # actions: the workflow files themselves. javascript-typescript: src/.
-        # Add java-kotlin (android/) or swift (ios/, needs a macOS runner) when native code exists.
+        # actions: the workflow files themselves.
+        # javascript-typescript: the React Native app (src/, index.js), scripts/ and __tests__/.
+        # Not yet analysed: android/ (java-kotlin, needs a Gradle build) and ios/ (swift, needs
+        # a macOS runner). See docs/ci.md before adding them: each adds a new check name.
         language: [actions, javascript-typescript]
     steps:
       - name: Check out code

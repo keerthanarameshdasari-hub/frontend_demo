@@ -1,8 +1,10 @@
 # Dependabot version updates.
 # Note: GitHub reads this file from the DEFAULT branch (main). It only takes effect
 # once it has been promoted dev -> test -> main.
-# Docker, Gradle and Bundler are not configured because this repo has no
-# Dockerfile, build.gradle or Gemfile yet; add those ecosystems when the files appear.
+# Docker is not configured because this repo has no Dockerfile; add it if one appears.
+# React Native itself (and the Android Gradle plugin, Kotlin, CocoaPods versions it
+# pins) is upgraded deliberately with the React Native upgrade helper, not by Dependabot,
+# so react-native and @react-native/* are ignored below.
 version: 2
 
 updates:
@@ -21,6 +23,49 @@ updates:
       default-days: 7
     groups:
       npm-minor-and-patch:
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # Upgraded together with the native projects; see the note at the top.
+      - dependency-name: "react-native"
+      - dependency-name: "@react-native/*"
+      - dependency-name: "@react-native-community/cli*"
+    commit-message:
+      prefix: "chore(deps)"
+
+  - package-ecosystem: gradle
+    directory: /android
+    target-branch: dev
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Asia/Kolkata
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+    groups:
+      gradle-minor-and-patch:
+        update-types:
+          - minor
+          - patch
+    commit-message:
+      prefix: "chore(deps)"
+
+  - package-ecosystem: bundler
+    directory: /
+    target-branch: dev
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Asia/Kolkata
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+    groups:
+      bundler-minor-and-patch:
         update-types:
           - minor
           - patch

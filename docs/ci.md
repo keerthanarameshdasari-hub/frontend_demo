@@ -9,21 +9,96 @@ run any of it yourself; it all happens on GitHub when you open a pull request.
 feature/* ──PR──▶ dev ──PR──▶ test ──PR──▶ main
 ```
 
-Every arrow is a pull request, and every pull request into `dev`, `test` or `main` runs the
-**Security** workflow (`.github/workflows/security.yml`). It also runs:
+Every arrow is a pull request, and every pull request into `dev`, `test` or `main` runs two
+workflows: **CI** (`.github/workflows/ci.yml`: build and test checks) and **Security**
+(`.github/workflows/security.yml`). Security also runs:
 
 - on every push to `dev` (i.e. after a PR merges), so `dev` itself is scanned and the Security
   tab reflects what is actually on the branch;
 - every Monday morning, so new problems in code that hasn't changed still get noticed (a
   vulnerability can be discovered in a package years after we added it).
 
-It never runs on `pull_request_target`, and it needs no secrets.
+Neither workflow runs on `pull_request_target`, and neither needs secrets.
 
-A pull request can only merge when all of its required checks are green. PRs into `dev` and
-`test` need nothing more, so you can merge your own. PRs into `main` also need an approval from
-the other maintainer (see "Who reviews what").
+A pull request can only merge when all of its required checks are green, it is up to date with
+the branch it targets, and the other maintainer has approved it (see "Who reviews what").
 
-## The jobs
+## The CI jobs
+
+### Lint, format and type check
+
+Runs, in order: `npm run config:check`, `npm run api:check`, `npm run format:check`,
+`npm run lint` and `npm run typecheck`.
+
+- **config:check** checks the four environments are wired up the same way everywhere: the env
+  files (only public keys, no secret-looking names, `https` outside dev), the Android flavours, the
+  iOS build configurations, Podfile and schemes, and that the app version is the same in
+  `package.json`, Android and iOS.
+- **api:check** checks `api/openapi.json` against `api/openapi.lock.json`, regenerates
+  `src/api/schema.d.ts` and fails if the committed copy differs.
+
+*Why:* the env wiring is spread over Gradle, Xcode and the Podfile, and a mismatch there ships the
+wrong backend URL or app ID without any compiler noticing. The env files are compiled into the app,
+so a secret in one is published to everyone who installs it.
+
+*If it fails:* the log names the file and the setting. For `api:check`, never edit
+`api/openapi.json` by hand: run `npm run api:fetch -- <tag>`. For formatting, run `npm run format`.
+
+### Unit and component tests
+
+`npm test`: the unit tests, the component tests that drive the whole app against an in-memory
+backend, and the test that every interactive element has a unique `testID`.
+
+### Contract test (pinned backend_demo)
+
+Starts `backend_demo` with `docker compose` at exactly the commit in `api/openapi.lock.json`, then
+runs `npm run test:contract`: sign-up, sign-in, KYC upload, top-ups and idempotent retries, through
+the app's own API client.
+
+It checks backend_demo out at the tag written on the `ref: ... # backend-pin` lines in the
+workflows, not at a ref read from a file while the job runs, so a pull request can't make CI run
+another backend commit without changing those lines (which the reviewer sees). After the checkout,
+`scripts/verify-backend-pin.sh` checks it is exactly the commit `api/openapi.lock.json` pins, so a
+moved tag fails the job. `npm run api:fetch -- <tag>` updates those lines for you, and
+`npm run config:check` fails if they ever disagree with the lock. An untagged pin fails CI: tag the
+commit in backend_demo first.
+
+*Why:* the component tests use a fake backend, which can drift from the real one. This proves the
+app's requests work against the backend version the client was generated from.
+
+*If it fails:* the job prints the backend's logs. If you just moved the pin, the new backend
+version changed behaviour the app relies on.
+
+## The Devices workflow (emulator and simulator)
+
+`.github/workflows/devices.yml` builds the **dev** app and runs it on GitHub's machines, so nobody
+needs an emulator or simulator on their own laptop. It runs on pull requests that change the app
+(`src/`, `android/`, `ios/`, packages, `.env.dev`, `api/`, `e2e/`), and you can start it by hand:
+**Actions → Devices → Run workflow**.
+
+| Job | Machine | What it does |
+|---|---|---|
+| `Android emulator (dev)` | Linux | Starts backend_demo with docker compose, builds the dev release APK, boots an API 35 emulator, and walks the whole journey through the UI: create account, KYC upload with the system file picker, top-up. |
+| `iOS simulator (dev)` | macOS | Starts backend_demo without Docker (Postgres, an S3 stand-in and the API), builds the `Dev` scheme in `Release-Dev`, and in the simulator creates an account, approves KYC through the API (the simulator has no files for the picker), relaunches and tops up. |
+
+Both use backend_demo at the pinned tag, checked the same way as for the contract test, with no
+shared npm or Gradle caches so backend code can't tamper with caches other runs reuse. [Maestro](https://maestro.dev) drives the app through its testIDs (flows in `e2e/`, scripts in
+`scripts/e2e/`). Maestro is pinned and checked against the sha256 GitHub records for its release.
+
+**Reading the results:** open the run and scroll to **Artifacts**. `android-results` and
+`ios-results` each hold numbered screenshots of every step, `journey.mp4` (a screen recording),
+`final-screen.png`, a JUnit report, Maestro's debug output (with a screenshot of the failing step
+when one fails) and logs (`logcat.txt` on Android, `backend-*.log` on iOS).
+
+*If it fails:* look at the failing step's screenshot in Maestro's debug output first. A failure in
+the build step is a native build problem; a failure in the journey is an app or test problem.
+
+The jobs are slow (roughly 20–40 minutes each, longest on the first run) and macOS minutes are
+expensive on private repositories, which is why they only run when app files change. **Don't add
+them to the required checks**: they don't run on every PR, and a required check that never reports
+blocks the PR forever.
+
+## The security jobs
 
 ### Secret scan (gitleaks)
 
@@ -55,17 +130,18 @@ GitHub's code analyser. It runs once per language, which is why it shows up as t
 
 - **actions** reads our workflow files and looks for things like untrusted input reaching a
   shell script, or a job with more permissions than it uses.
-- **javascript-typescript** reads `src/` and looks for security bugs such as injection,
-  cross-site scripting and unsafe use of user input.
+- **javascript-typescript** reads the app (`src/`, `index.js`), `scripts/` and the tests, and
+  looks for security bugs such as injection, cross-site scripting and unsafe use of user input.
 
 *Why:* these are the bugs reviewers miss most often, because the dangerous path can run across
 several files.
 
 *If it fails:* open the **Security → Code scanning** tab for the explanation and a suggested fix.
 
-**A later step must add more languages.** This repo has no native code yet. When `android/`
-is added, add `java-kotlin` to the language list in `security.yml`; when `ios/` is added, add
-`swift` (that one needs a macOS runner). Until then those folders are not analysed.
+**Native code is not analysed yet.** `android/` (Kotlin) and `ios/` (Swift) exist now, but
+CodeQL's `java-kotlin` needs a full Gradle build in the job and `swift` needs a macOS runner, so they
+are left for a separate change. Adding a language adds a check, so update the rulesets with it
+(see "Required checks").
 
 ### Workflow audit (zizmor)
 
@@ -101,33 +177,45 @@ makes a job do nothing.
 ## Keeping things up to date
 
 Dependabot (`.github/dependabot.yml`) opens a pull request into `dev` every Monday for
-outdated npm packages and GitHub Actions. Minor and patch updates are grouped into one PR per
-ecosystem, so there's less noise. Those PRs go through the same checks as everyone else's.
+outdated npm packages, GitHub Actions, Gradle dependencies (`android/`) and Ruby gems (the
+`Gemfile` that pins CocoaPods). Minor and patch updates are grouped into one PR per ecosystem, so
+there's less noise. Those PRs go through the same checks as everyone else's.
+
+React Native itself (`react-native`, `@react-native/*`, `@react-native-community/cli*`) is ignored:
+a React Native upgrade also changes files in `android/` and `ios/`, so it is done by hand with the
+[upgrade helper](https://react-native-community.github.io/upgrade-helper/), not by bumping a version.
 
 ## Who reviews what
 
 `.github/CODEOWNERS` makes @keerthanarameshdasari-hub and @Keerthana-212 the code owners of
 every file, with explicit lines for CI config (`.github/`), infrastructure (`infra/`),
-Dockerfiles and `package-lock.json`. Lines for `android/` and `ios/` are ready but commented
-out until those folders exist.
+Dockerfiles and `package-lock.json`, plus the native projects (`android/`, `ios/`), the
+environment files (`.env.*`) and the pinned API contract (`api/`).
 
 Because every file has owners, GitHub automatically asks the other maintainer to review each
 pull request; it shows up in their GitHub notifications (and email, if they have it on). What
 that review means depends on where the PR is going:
 
-- **Into `dev` or `test`** (`dev-test` ruleset): the review is optional. Once the checks are
-  green you can merge your own PR.
-- **Into `main`** (`main-strict` ruleset): one approval from a code owner other than the PR's
-  author is required. If new commits are pushed after the approval, it is dismissed and the
-  PR needs approving again. Nobody, admins included, can bypass this.
+The rulesets `protect-dev`, `protect-test` and `protect-main` (Settings → Rules → Rulesets)
+apply the same rules to all three branches:
+
+- **An approval from a code owner other than the PR's author.** You can't approve your own PR,
+  so the other maintainer has to. `protect-test` and `protect-main` also ask for one approving
+  review in general, which the code owner's approval satisfies.
+- **Up to date with the target branch.** If the PR shows "This branch is out-of-date", click
+  **Update branch** (the checks then run again).
+- **All review conversations resolved.**
+- **Squash merge only.**
+- **New commits dismiss earlier approvals**, so approve after the last push.
+- **No bypass:** nobody, admins included, can skip these.
 
 To review, open the PR, go to **Files changed → Review changes**, pick **Approve** or
 **Request changes**, and submit.
 
 ## Required checks
 
-These are the check names to require in both branch rulesets, `dev-test` (for `dev` and `test`)
-and `main-strict` (for `main`):
+These are the check names to require in all three branch rulesets (`protect-dev`, `protect-test`,
+`protect-main`):
 
 | Check name | Job |
 |---|---|
@@ -137,6 +225,15 @@ and `main-strict` (for `main`):
 | `CodeQL (javascript-typescript)` | codeql |
 | `Workflow audit (zizmor)` | zizmor |
 | `Workflow lint (actionlint)` | actionlint |
+| `Lint, format and type check` | static (ci.yml) |
+| `Unit and component tests` | unit (ci.yml) |
+| `Contract test (pinned backend_demo)` | contract (ci.yml) |
+
+The last three come from `ci.yml` and are new with the mobile app: **add them to all three
+rulesets** so a PR can't merge with them failing.
+
+The Devices jobs (`Android emulator (dev)`, `iOS simulator (dev)`) are deliberately **not** in this
+list; see "The Devices workflow".
 
 If you rename a job or add a CodeQL language, update the rulesets too. A required check whose
 name no longer exists never reports, and PRs wait on it forever.

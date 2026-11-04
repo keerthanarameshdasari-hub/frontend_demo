@@ -1,7 +1,8 @@
 # Code owners for frontend_demo.
 # GitHub automatically requests a review from the owners of every file a PR changes.
-# The main-strict ruleset makes that approval required for PRs into main; dev and test
-# only need green checks. Later rules take precedence over earlier ones.
+# The protect-dev, protect-test and protect-main rulesets make a code owner's approval
+# (someone other than the author) required for every PR. Later rules take precedence
+# over earlier ones.
 
 # Default: everything, so every PR asks the other maintainer for a review
 *                        @keerthanarameshdasari-hub @Keerthana-212
@@ -16,7 +17,12 @@ Dockerfile*              @keerthanarameshdasari-hub @Keerthana-212
 # Lockfile: a change here changes exactly what code ships
 package-lock.json        @keerthanarameshdasari-hub @Keerthana-212
 
-# Native app folders: android/ and ios/ do not exist in this repo yet.
-# Uncomment these when they are added.
-# /android/              @keerthanarameshdasari-hub @Keerthana-212
-# /ios/                  @keerthanarameshdasari-hub @Keerthana-212
+# Native app projects: signing, app IDs, permissions and build settings live here
+/android/                @keerthanarameshdasari-hub @Keerthana-212
+/ios/                    @keerthanarameshdasari-hub @Keerthana-212
+
+# Build-time environment config: compiled into the app, so public values only
+/.env.*                  @keerthanarameshdasari-hub @Keerthana-212
+
+# The pinned backend contract the API client is generated from
+/api/                    @keerthanarameshdasari-hub @Keerthana-212
