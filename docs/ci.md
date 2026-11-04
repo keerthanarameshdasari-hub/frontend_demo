@@ -62,10 +62,34 @@ app's requests work against the backend version the client was generated from.
 *If it fails:* the job prints the backend's logs. If you just moved the pin, the new backend
 version changed behaviour the app relies on.
 
-### Not run yet
+## The Devices workflow (emulator and simulator)
 
-Native builds (Gradle for Android, Xcode for iOS) and UI tests on an emulator or simulator. Until
-they are added, run the dev flavour on both before merging (README, "Run it locally").
+`.github/workflows/devices.yml` builds the **dev** app and runs it on GitHub's machines, so nobody
+needs an emulator or simulator on their own laptop. It runs on pull requests that change the app
+(`src/`, `android/`, `ios/`, packages, `.env.dev`, `api/`, `e2e/`), and you can start it by hand:
+**Actions → Devices → Run workflow**.
+
+| Job | Machine | What it does |
+|---|---|---|
+| `Android emulator (dev)` | Linux | Starts backend_demo with docker compose, builds the dev release APK, boots an API 35 emulator, and walks the whole journey through the UI: create account, KYC upload with the system file picker, top-up. |
+| `iOS simulator (dev)` | macOS | Starts backend_demo without Docker (Postgres, an S3 stand-in and the API), builds the `Dev` scheme in `Release-Dev`, and in the simulator creates an account, approves KYC through the API (the simulator has no files for the picker), relaunches and tops up. |
+
+Both use backend_demo at the commit pinned in `api/openapi.lock.json`, and
+[Maestro](https://maestro.dev) drives the app through its testIDs (flows in `e2e/`, scripts in
+`scripts/e2e/`). Maestro is pinned and checked against the sha256 GitHub records for its release.
+
+**Reading the results:** open the run and scroll to **Artifacts**. `android-results` and
+`ios-results` each hold numbered screenshots of every step, `journey.mp4` (a screen recording),
+`final-screen.png`, a JUnit report, Maestro's debug output (with a screenshot of the failing step
+when one fails) and logs (`logcat.txt` on Android, `backend-*.log` on iOS).
+
+*If it fails:* look at the failing step's screenshot in Maestro's debug output first. A failure in
+the build step is a native build problem; a failure in the journey is an app or test problem.
+
+The jobs are slow (roughly 20–40 minutes each, longest on the first run) and macOS minutes are
+expensive on private repositories, which is why they only run when app files change. **Don't add
+them to the required checks**: they don't run on every PR, and a required check that never reports
+blocks the PR forever.
 
 ## The security jobs
 
@@ -193,6 +217,9 @@ and `main-strict` (for `main`):
 
 The last three come from `ci.yml` and are new with the mobile app: **add them to both rulesets** so a
 PR can't merge with them failing.
+
+The Devices jobs (`Android emulator (dev)`, `iOS simulator (dev)`) are deliberately **not** in this
+list; see "The Devices workflow".
 
 If you rename a job or add a CodeQL language, update the rulesets too. A required check whose
 name no longer exists never reports, and PRs wait on it forever.

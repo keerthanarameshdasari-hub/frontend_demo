@@ -7,6 +7,13 @@ the `backend_demo` API. React Native 0.88 (community CLI, no Expo), TypeScript.
 Branch flow: `feature/*` → `dev` → `test` → `main`, each step by pull request. See
 [docs/ci.md](docs/ci.md) for what runs on every pull request.
 
+## See it running without an emulator
+
+The **Devices** workflow builds the dev app and runs it on an Android emulator and an iOS simulator
+on GitHub's machines: **Actions → Devices → Run workflow**, then download the `android-results` and
+`ios-results` artifacts for screenshots of each step and a screen recording. See
+[docs/ci.md](docs/ci.md#the-devices-workflow-emulator-and-simulator).
+
 ## Run it locally (dev flavour, local backend)
 
 There is no deployed backend yet, so the dev build talks to `backend_demo` on your machine.
@@ -44,6 +51,9 @@ and `npm run ios:<env>` run the Debug build of each; release builds are
 - **The Android test flavour is `tst`**, not `test`: the Android Gradle Plugin rejects flavour
   names starting with "test" because they clash with unit-test source sets. It still loads
   `.env.test` and reports `ENV_NAME=test`.
+- **Only the dev flavour allows plain `http`**, in debug and release builds alike
+  (`android/app/src/dev/res/xml/network_security_config.xml`), because its backend runs on the
+  developer's machine. The other flavours block cleartext in release builds.
 - **iOS has a Debug and a Release configuration per environment.** React Native decides between
   Metro and the bundled JS from "Debug" in the configuration name, so a single `Dev` configuration
   can't do both. The Podfile marks each `Debug-*` as debug for CocoaPods and for Swift's `#if DEBUG`
